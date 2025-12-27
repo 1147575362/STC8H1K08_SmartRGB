@@ -1,0 +1,6 @@
+".\Objects\STARTUP.obj",
+".\Objects\main.obj",
+".\Objects\ws2811_hal.obj",
+".\Objects\led_manager.obj" 
+TO ".\Objects\Keil_project" 
+PRINT(".\Listings\Keil_project.m51") RAMSIZE(256) 
