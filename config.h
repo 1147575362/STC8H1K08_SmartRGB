@@ -4,21 +4,24 @@
 #include <STC8G.H>  
 #include <intrins.h>
 
-// ==========================================
-// 修复数据类型定义
-// ==========================================
+// ================= 类型定义 =================
 typedef unsigned char   uint8_t;
 typedef unsigned int    uint16_t;
 typedef unsigned long   uint32_t;
-typedef int             int16_t;  // <--- 新增这一行，解决 undefined identifier 报错
+typedef int             int16_t;
 
 // ================= 硬件定义 =================
-// 根据你的实际接线修改，推荐 P3.2 或 P3.3
-sbit LED_PIN = P3^2; 
+// 1. 灯带信号脚修改为 P1.3
+sbit LED_PIN = P1^3; 
+
+// 2. 板载指示灯定义 (根据常见核心板，通常是 P1.0，如果不对请改这里)
+sbit ONBOARD_LED = P1^2;
 
 // ================= 参数定义 =================
 #define LED_COUNT       15         
 #define SYS_CLOCK_HZ    24000000UL 
+
+// 动画任务刷新周期 10ms
 #define ANIMATION_TICK_MS  10 
 
 #endif

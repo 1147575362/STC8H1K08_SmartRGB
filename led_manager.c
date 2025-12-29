@@ -7,10 +7,22 @@ uint16_t xdata FadeCounters[LED_COUNT];
 void LED_System_Init(void) {
     uint8_t i;
     
-    // STC8G P3.2 推挽输出配置
-    P3M0 |= 0x04; 
-    P3M1 &= ~0x04;
+    // ===========================================
+    // IO模式配置 (关键修改)
+    // ===========================================
+    // P1.3 (灯带) -> 推挽输出 (M0=1, M1=0)
+    // P1.0 (板载LED) -> 推挽输出 (M0=1, M1=0)
+    // P1M0 |= 0x09; // 0000 1001 (P1.3 和 P1.0 置1)
+    // P1M1 &= ~0x09;
     
+    // 为了安全起见，分开写：
+    P1M0 |= 0x08; P1M1 &= ~0x08; // P1.3 推挽
+    P1M0 |= 0x01; P1M1 &= ~0x01; // P1.0 推挽 (如果LED1在其他脚，请改这里)
+    
+    // 关掉LED1 (假设高电平亮，视电路而定)
+    ONBOARD_LED = 0; 
+
+    // 清空显存
     for(i=0; i<LED_COUNT; i++) {
         PixelBuffer[i][0]=0; PixelBuffer[i][1]=0; PixelBuffer[i][2]=0;
         TargetBuffer[i][0]=0; TargetBuffer[i][1]=0; TargetBuffer[i][2]=0;
@@ -46,24 +58,18 @@ void SetLed(uint8_t index, uint8_t r, uint8_t g, uint8_t b, uint16_t brightness,
     }
 }
 
-// 修复后的 Approach 函数：变量定义在顶部
 uint8_t Approach(uint8_t current, uint8_t target, uint16_t steps) {
-    int16_t diff;      // 变量声明前置
-    int16_t step_val;  // 变量声明前置
-
-    // 强转为 int16_t 以计算负数差值
-    diff = (int16_t)target - current;
+    int16_t diff;
+    int16_t step_val;
     
+    diff = (int16_t)target - current;
     if (steps == 0 || diff == 0) return target;
     
     step_val = diff / (int16_t)steps;
-    
-    // 如果步进太小被整除为0，强制移动1步
     if (step_val == 0) {
         if (diff > 0) step_val = 1;
         else step_val = -1;
     }
-    
     return (uint8_t)(current + step_val);
 }
 
@@ -80,12 +86,10 @@ void LED_Task_Loop(void) {
             PixelBuffer[i][2] = Approach(PixelBuffer[i][2], TargetBuffer[i][2], FadeCounters[i]);
             FadeCounters[i]--;
         } else {
-            // 确保最终颜色一致
             if (PixelBuffer[i][0] != TargetBuffer[i][0]) { PixelBuffer[i][0] = TargetBuffer[i][0]; need_update = 1; }
             if (PixelBuffer[i][1] != TargetBuffer[i][1]) { PixelBuffer[i][1] = TargetBuffer[i][1]; need_update = 1; }
             if (PixelBuffer[i][2] != TargetBuffer[i][2]) { PixelBuffer[i][2] = TargetBuffer[i][2]; need_update = 1; }
         }
     }
-    
     if (need_update) WS2811_Show();
 }
