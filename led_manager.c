@@ -1,38 +1,26 @@
 #include "config.h"
 
 extern uint8_t xdata PixelBuffer[LED_COUNT][3];
+uint8_t xdata StartBuffer[LED_COUNT][3];
 uint8_t xdata TargetBuffer[LED_COUNT][3];
-uint16_t xdata FadeCounters[LED_COUNT];
+uint16_t xdata CurrentTicks[LED_COUNT];
+uint16_t xdata TotalTicks[LED_COUNT];
 
 void LED_System_Init(void) {
     uint8_t i;
+    // P1.3, P1.0 推挽输出
+    P1M0 |= 0x09; P1M1 &= ~0x09; 
     
-    // ===========================================
-    // IO模式配置 (关键修改)
-    // ===========================================
-    // P1.3 (灯带) -> 推挽输出 (M0=1, M1=0)
-    // P1.0 (板载LED) -> 推挽输出 (M0=1, M1=0)
-    // P1M0 |= 0x09; // 0000 1001 (P1.3 和 P1.0 置1)
-    // P1M1 &= ~0x09;
-    
-    // 为了安全起见，分开写：
-    P1M0 |= 0x08; P1M1 &= ~0x08; // P1.3 推挽
-    P1M0 |= 0x01; P1M1 &= ~0x01; // P1.0 推挽 (如果LED1在其他脚，请改这里)
-    
-    // 关掉LED1 (假设高电平亮，视电路而定)
-    ONBOARD_LED = 0; 
-
-    // 清空显存
     for(i=0; i<LED_COUNT; i++) {
         PixelBuffer[i][0]=0; PixelBuffer[i][1]=0; PixelBuffer[i][2]=0;
+        StartBuffer[i][0]=0; StartBuffer[i][1]=0; StartBuffer[i][2]=0;
         TargetBuffer[i][0]=0; TargetBuffer[i][1]=0; TargetBuffer[i][2]=0;
-        FadeCounters[i] = 0;
+        CurrentTicks[i] = 0; TotalTicks[i] = 0;
     }
 }
 
 void SetLed(uint8_t index, uint8_t r, uint8_t g, uint8_t b, uint16_t brightness, uint16_t fade_ms) {
     uint32_t tr, tg, tb;
-    
     if (index >= LED_COUNT) return;
     
     tr = ((uint32_t)r * brightness) >> 10;
@@ -43,6 +31,10 @@ void SetLed(uint8_t index, uint8_t r, uint8_t g, uint8_t b, uint16_t brightness,
     if (tg > 255) tg = 255;
     if (tb > 255) tb = 255;
     
+    StartBuffer[index][0] = PixelBuffer[index][0];
+    StartBuffer[index][1] = PixelBuffer[index][1];
+    StartBuffer[index][2] = PixelBuffer[index][2];
+    
     TargetBuffer[index][0] = (uint8_t)tr;
     TargetBuffer[index][1] = (uint8_t)tg;
     TargetBuffer[index][2] = (uint8_t)tb;
@@ -51,45 +43,62 @@ void SetLed(uint8_t index, uint8_t r, uint8_t g, uint8_t b, uint16_t brightness,
         PixelBuffer[index][0] = TargetBuffer[index][0];
         PixelBuffer[index][1] = TargetBuffer[index][1];
         PixelBuffer[index][2] = TargetBuffer[index][2];
-        FadeCounters[index] = 0;
+        TotalTicks[index] = 0;
+        CurrentTicks[index] = 0;
     } else {
-        FadeCounters[index] = fade_ms / ANIMATION_TICK_MS;
-        if (FadeCounters[index] == 0) FadeCounters[index] = 1; 
+        TotalTicks[index] = fade_ms / ANIMATION_TICK_MS;
+        if (TotalTicks[index] == 0) TotalTicks[index] = 1;
+        CurrentTicks[index] = 0;
     }
 }
 
-uint8_t Approach(uint8_t current, uint8_t target, uint16_t steps) {
+// 线性插值
+uint8_t Interpolate(uint8_t start, uint8_t target, uint16_t current_tick, uint16_t total_tick) {
+    int32_t val;
     int16_t diff;
-    int16_t step_val;
-    
-    diff = (int16_t)target - current;
-    if (steps == 0 || diff == 0) return target;
-    
-    step_val = diff / (int16_t)steps;
-    if (step_val == 0) {
-        if (diff > 0) step_val = 1;
-        else step_val = -1;
-    }
-    return (uint8_t)(current + step_val);
+    if (current_tick >= total_tick) return target;
+    diff = (int16_t)target - (int16_t)start;
+    val = (int32_t)start + ((int32_t)diff * current_tick) / total_tick;
+    if (val < 0) return 0;
+    if (val > 255) return 255;
+    return (uint8_t)val;
 }
 
-void LED_Task_Loop(void) {
+// 核心修改：增加 ticks_passed 参数
+void LED_Task_Loop(uint8_t ticks_passed) {
     extern void WS2811_Show(void);
     uint8_t i;
     bit need_update = 0;
     
+    // 如果没有时间流逝，直接返回，不浪费CPU
+    if (ticks_passed == 0) return;
+
     for(i=0; i<LED_COUNT; i++) {
-        if (FadeCounters[i] > 0) {
+        if (CurrentTicks[i] < TotalTicks[i]) {
             need_update = 1;
-            PixelBuffer[i][0] = Approach(PixelBuffer[i][0], TargetBuffer[i][0], FadeCounters[i]);
-            PixelBuffer[i][1] = Approach(PixelBuffer[i][1], TargetBuffer[i][1], FadeCounters[i]);
-            PixelBuffer[i][2] = Approach(PixelBuffer[i][2], TargetBuffer[i][2], FadeCounters[i]);
-            FadeCounters[i]--;
-        } else {
-            if (PixelBuffer[i][0] != TargetBuffer[i][0]) { PixelBuffer[i][0] = TargetBuffer[i][0]; need_update = 1; }
-            if (PixelBuffer[i][1] != TargetBuffer[i][1]) { PixelBuffer[i][1] = TargetBuffer[i][1]; need_update = 1; }
-            if (PixelBuffer[i][2] != TargetBuffer[i][2]) { PixelBuffer[i][2] = TargetBuffer[i][2]; need_update = 1; }
+            // 关键：一次性加上过去的所有时间，实现“追帧”
+            CurrentTicks[i] += ticks_passed; 
+            
+            // 防止超调
+            if (CurrentTicks[i] > TotalTicks[i]) {
+                CurrentTicks[i] = TotalTicks[i];
+            }
+            
+            PixelBuffer[i][0] = Interpolate(StartBuffer[i][0], TargetBuffer[i][0], CurrentTicks[i], TotalTicks[i]);
+            PixelBuffer[i][1] = Interpolate(StartBuffer[i][1], TargetBuffer[i][1], CurrentTicks[i], TotalTicks[i]);
+            PixelBuffer[i][2] = Interpolate(StartBuffer[i][2], TargetBuffer[i][2], CurrentTicks[i], TotalTicks[i]);
+            
+        } else if (TotalTicks[i] > 0) {
+            // 结束时强制对齐
+            if (PixelBuffer[i][0] != TargetBuffer[i][0] || PixelBuffer[i][1] != TargetBuffer[i][1] || PixelBuffer[i][2] != TargetBuffer[i][2]) {
+                PixelBuffer[i][0] = TargetBuffer[i][0];
+                PixelBuffer[i][1] = TargetBuffer[i][1];
+                PixelBuffer[i][2] = TargetBuffer[i][2];
+                need_update = 1;
+            }
+            TotalTicks[i] = 0;
         }
     }
+    
     if (need_update) WS2811_Show();
 }
