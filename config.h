@@ -17,7 +17,7 @@ typedef int             int16_t;  // <--- 新增这一行，解决 undefined ide
 sbit LED_PIN = P3^2; 
 
 // ================= 参数定义 =================
-#define LED_COUNT       66         
+#define LED_COUNT       15         
 #define SYS_CLOCK_HZ    24000000UL 
 #define ANIMATION_TICK_MS  10 
 

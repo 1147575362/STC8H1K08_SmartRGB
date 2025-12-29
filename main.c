@@ -26,19 +26,19 @@ void Auto_Effects(void) {
             // 错误写法：for(uint8_t i=0...)
             // 正确写法：使用上面定义的 i
             for(i=0; i<LED_COUNT; i++) {
-                SetLed(i, 255, 0, 0, 200, 1000); 
+                SetLed(i, 0, 255, 0, 1023, 1000); 
             }
             state = 1; 
             break;
         case 1: 
             for(i=0; i<LED_COUNT; i++) {
-                SetLed(i, 0, 255, 0, 200, 1000); 
+                SetLed(i, 0, 0, 255, 1023, 1000); 
             }
             state = 2; 
             break;
         case 2: 
             for(i=0; i<LED_COUNT; i++) {
-                SetLed(i, 0, 0, 255, 200, 1000); 
+                SetLed(i, 255, 0, 0, 1023, 1000); 
             }
             state = 0; 
             break;
