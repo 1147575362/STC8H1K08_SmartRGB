@@ -19,7 +19,7 @@ sbit LED_PIN = P1^3;
 sbit ONBOARD_LED = P1^2;
 
 // ================= 参数定义 =================
-#define LED_COUNT       66         
+#define LED_COUNT       15         
 #define SYS_CLOCK_HZ    24000000UL 
 
 // 动画任务刷新周期 10ms

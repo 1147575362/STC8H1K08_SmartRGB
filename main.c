@@ -23,42 +23,43 @@ void Blink_Task(void) {
 
 void Auto_Effects(void) {
     static uint8_t state = 0;
-    static uint32_t state_start_time = 0; // 记录进入状态的时间点
-    static uint32_t wait_ms = 0;
+    static uint32_t state_start_time = 0; 
+    static uint32_t hold_time = 0; // 新增：专门控制“保持多久”
     uint8_t i;
     
-    // 检查是否到达预定时间
-    if (g_SysTick - state_start_time < wait_ms) {
+    // 检查是否到达预定的保持时间
+    if (g_SysTick - state_start_time < hold_time) {
         return; 
     }
 
-    // 时间到，切换状态
+    // 时间到，执行切换
     switch(state) {
         case 0: 
-            wait_ms = 1000; // 3秒渐变
-            for(i=0; i<LED_COUNT; i++) SetLed(i, 0, 255, 0, 500, wait_ms);
+            hold_time = 1000; 
+            /*for(i=0; i<LED_COUNT; i++)*/ SetLed(0, 255, 0, 0, 100, 1000); // fade_ms = 0 (无渐变)
             
-            state_start_time = g_SysTick; // 记录当前时间
+            state_start_time = g_SysTick;
             state = 1; 
             break;
             
         case 1: 
-            wait_ms = 1000;
-            for(i=0; i<LED_COUNT; i++) SetLed(i, 0, 0, 0, 0, wait_ms);
+            hold_time = 1000;
+            /*for(i=0; i<LED_COUNT; i++)*/ SetLed(0, 0, 255, 0, 100, 1000); 
             
             state_start_time = g_SysTick;
             state = 2; 
             break;
             
         case 2: 
-            wait_ms = 500;
-            for(i=0; i<15; i++) SetLed(i, 0, 0, 255, 200, wait_ms);
+            hold_time = 1000;
+            /*for(i=0; i<LED_COUNT; i++)*/ SetLed(0, 0, 0, 255, 100, 1000); 
             
             state_start_time = g_SysTick;
-            state = (i = 15 ? 0 : 2); 
+            state = 0; 
             break;
     }
 }
+
 
 void main() {
     static uint32_t last_anim_time = 0;
