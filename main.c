@@ -12,14 +12,14 @@ void Timer0_Isr(void) interrupt 1 {
     g_SysTick++; // 无论主循环多卡，中断里的计数永远是准的
 }
 
-void Blink_Task(void) {
-    static uint32_t last_blink_time = 0;
-    // 使用差值判断，防止溢出问题
-    if (g_SysTick - last_blink_time >= 500) { // 500ms
-        last_blink_time = g_SysTick;
-        ONBOARD_LED = !ONBOARD_LED;
-    }
-}
+// void Blink_Task(void) {
+//     static uint32_t last_blink_time = 0;
+//     // 使用差值判断，防止溢出问题
+//     if (g_SysTick - last_blink_time >= 500) { // 500ms
+//         last_blink_time = g_SysTick;
+//         ONBOARD_LED = !ONBOARD_LED;
+//     }
+// }
 
 void Auto_Effects(void) {
     static uint8_t state = 0;
@@ -94,7 +94,7 @@ void main() {
             
             // 运行上层逻辑
             Auto_Effects();
-            Blink_Task();
+            //Blink_Task();
         }
     }
 }

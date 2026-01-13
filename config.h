@@ -1,7 +1,7 @@
 #ifndef __CONFIG_H__
 #define __CONFIG_H__
 
-#include <STC8G.H>  
+#include <STC8H.H>  
 #include <intrins.h>
 
 // ================= 类型定义 =================
@@ -16,10 +16,10 @@ typedef long            int32_t;
 sbit LED_PIN = P1^3; 
 
 // 2. 板载指示灯定义 (根据常见核心板，通常是 P1.0，如果不对请改这里)
-sbit ONBOARD_LED = P1^2;
+// sbit ONBOARD_LED = P1^2;
 
 // ================= 参数定义 =================
-#define LED_COUNT       15         
+#define LED_COUNT       10         
 #define SYS_CLOCK_HZ    24000000UL 
 
 // 动画任务刷新周期 10ms
