@@ -6,7 +6,6 @@
 extern void LED_System_Init(void);
 extern void SetLed(uint8_t index, uint8_t r, uint8_t g, uint8_t b, uint16_t brightness, uint16_t fade_ms);
 extern void LED_Task_Loop(uint8_t ticks_passed); 
-// 新增：引用底层发送函数，用于上电立即灭灯
 extern void WS2811_Show(void);
 
 // 系统绝对时间计数器
@@ -14,6 +13,17 @@ volatile uint32_t g_SysTick = 0;
 
 void Timer0_Isr(void) interrupt 1 {
     g_SysTick++; 
+}
+
+// ---------------------------------------------------------
+// 简易软件延时 (用于上电初期，此时定时器未启动)
+// ---------------------------------------------------------
+void Delay_Soft_Ms(uint16_t ms) {
+    uint16_t i, j;
+    for(i=0; i<ms; i++) {
+        // 24MHz主频下，循环大概调整到1ms
+        for(j=0; j<2000; j++) { _nop_(); _nop_(); _nop_(); _nop_(); }
+    }
 }
 
 // ==========================================
@@ -57,14 +67,13 @@ void Wheel(uint8_t WheelPos, uint8_t* r, uint8_t* g, uint8_t* b) {
 }
 
 // ==========================================
-// 核心逻辑：彩虹 -> 白光 -> 呼吸(亮到暗) -> 循环
+// 核心逻辑：彩虹 -> 白光 -> 呼吸 -> (渐变) -> 循环
 // ==========================================
 void Auto_Effects(void) {
     static uint8_t state = 0;
     static uint32_t last_update_time = 0;
     static uint32_t state_start_time = 0; 
     static uint8_t rainbow_pos = 0;
-    // 新增：强制首帧标志位
     static bit first_run = 1;
     
     uint8_t i;
@@ -77,10 +86,9 @@ void Auto_Effects(void) {
         // 阶段 0: 柔和彩虹流水 (10秒)
         // --------------------------------------------------
         case 0:
-            // 逻辑优化：如果是第一次运行，或者时间到了 15ms
             if (first_run || (now - last_update_time >= 15)) {
                 last_update_time = now;
-                first_run = 0; // 清除首帧标志
+                first_run = 0; 
                 
                 rainbow_pos++; 
 
@@ -90,12 +98,12 @@ void Auto_Effects(void) {
                 }
             }
 
-            // 10秒后切换
+            // 10秒后切换到白光常亮
             if (now - state_start_time > 10000) {
                 state = 1; 
                 state_start_time = now;
                 
-                // 预设渐变到白光
+                // 1.5秒渐变到白光
                 for(i=0; i<LED_COUNT; i++) {
                     SetLed(i, 255, 255, 255, 300, 1500);
                 }
@@ -106,7 +114,6 @@ void Auto_Effects(void) {
         // 阶段 1: 白光常亮 (5秒)
         // --------------------------------------------------
         case 1:
-            // 等待 5秒
             if (now - state_start_time > 5000) {
                 state = 2;
                 state_start_time = now;
@@ -115,11 +122,10 @@ void Auto_Effects(void) {
 
         // --------------------------------------------------
         // 阶段 2: 白光呼吸 (5秒)
-        // 优化：从亮(300) -> 暗(30) -> 亮(300)
+        // 修正点2：亮度减半 (Max 150, Min 15)
         // --------------------------------------------------
         case 2:
             if (now - last_update_time >= 10) {
-                // 变量声明必须在代码块顶部 (C89标准)
                 uint32_t time_in_cycle;
                 uint16_t pwm_val;
 
@@ -128,14 +134,13 @@ void Auto_Effects(void) {
                 // 周期 1000ms
                 time_in_cycle = (now - state_start_time) % 1000;
 
-                // 【修改点】：前500ms 变暗，后500ms 变亮
+                // 亮度范围改为: 15 ~ 150 (差值 135)
                 if (time_in_cycle < 500) {
-                    // 0~500ms: 亮度 300 -> 30 (变暗)
-                    // 公式：300 - (当前时间 * 差值 / 总时间)
-                    pwm_val = 300 - (uint32_t)time_in_cycle * 270 / 500;
+                    // 0~500ms: 变暗 (150 -> 15)
+                    pwm_val = 150 - (uint32_t)time_in_cycle * 135 / 500;
                 } else {
-                    // 500~1000ms: 亮度 30 -> 300 (变亮)
-                    pwm_val = 30 + (uint32_t)(time_in_cycle - 500) * 270 / 500;
+                    // 500~1000ms: 变亮 (15 -> 150)
+                    pwm_val = 15 + (uint32_t)(time_in_cycle - 500) * 135 / 500;
                 }
 
                 for(i=0; i<LED_COUNT; i++) {
@@ -143,11 +148,33 @@ void Auto_Effects(void) {
                 }
             }
 
-            // 5秒后循环
+            // 5秒后，准备切回彩虹
             if (now - state_start_time > 5000) {
+                // 修正点3：不直接跳 case 0，而是去 case 3 做过渡
+                state = 3; 
+                state_start_time = now;
+
+                // 提前计算彩虹模式的第0帧颜色，并在 500ms 内渐变过去
+                // 注意：目标亮度恢复为 300 (匹配彩虹模式亮度)
+                for(i=0; i<LED_COUNT; i++) {
+                    Wheel((0 + i * 25) & 0xFF, &r, &g, &b);
+                    SetLed(i, r, g, b, 300, 500); // 500ms 渐变
+                }
+            }
+            break;
+
+        // --------------------------------------------------
+        // 阶段 3: 过渡等待期 (0.5秒)
+        // --------------------------------------------------
+        case 3:
+            // 等待 SetLed 的 500ms 渐变动画播放完
+            if (now - state_start_time > 500) {
                 state = 0; 
                 state_start_time = now;
-                first_run = 1; // 重置标志位，确保下一次彩虹立马开始
+                
+                // 重置彩虹参数，确保衔接自然
+                first_run = 1; 
+                rainbow_pos = 0; 
             }
             break;
     }
@@ -159,16 +186,20 @@ void main() {
     // 1. 硬件配置
     P_SW2 |= 0x80; 
     LED_System_Init();
+    // LED_PIN = 0; // 确保IO口初始为低
     
     // ===============================================
-    // 【关键修复 1】：上电立即强制全黑
-    // 防止出现 0.5s 的白光闪烁
+    // 【关键修复 1】：上电强延时 + 强制全黑
+    // LED驱动芯片上电需要时间复位，必须先延时！
     // ===============================================
-    { 
-        uint8_t j; 
-        for(j=0; j<LED_COUNT; j++) SetLed(j, 0,0,0, 0, 0); 
-    }
-    WS2811_Show(); // 立即发送！不等定时器！
+    // Delay_Soft_Ms(200); // 这里的延时非常重要！
+    
+    // { 
+    //     uint8_t j; 
+    //     for(j=0; j<LED_COUNT; j++) SetLed(j, 0,0,0, 0, 0); 
+    // }
+    // WS2811_Show(); 
+    // Delay_Soft_Ms(10); // 发完数据再稳一下
     
     // 2. 定时器配置 (1ms @ 24MHz)
     AUXR |= 0x80; TMOD &= 0xF0; TL0 = 0x40; TH0 = 0xA2; 
