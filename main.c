@@ -18,13 +18,13 @@ void Timer0_Isr(void) interrupt 1 {
 // ---------------------------------------------------------
 // 简易软件延时 (用于上电初期，此时定时器未启动)
 // ---------------------------------------------------------
-void Delay_Soft_Ms(uint16_t ms) {
-    uint16_t i, j;
-    for(i=0; i<ms; i++) {
-        // 24MHz主频下，循环大概调整到1ms
-        for(j=0; j<2000; j++) { _nop_(); _nop_(); _nop_(); _nop_(); }
-    }
-}
+// void Delay_Soft_Ms(uint16_t ms) {
+//     uint16_t i, j;
+//     for(i=0; i<ms; i++) {
+//         // 24MHz主频下，循环大概调整到1ms
+//         for(j=0; j<2000; j++) { _nop_(); _nop_(); _nop_(); _nop_(); }
+//     }
+// }
 
 // ==========================================
 // Gamma 校正
@@ -94,7 +94,7 @@ void Auto_Effects(void) {
 
                 for(i=0; i<LED_COUNT; i++) {
                     Wheel((rainbow_pos + i * 25) & 0xFF, &r, &g, &b);
-                    SetLed(i, r, g, b, 300, 0); 
+                    SetLed(i, r, g, b, 400, 0); 
                 }
             }
 
@@ -134,13 +134,13 @@ void Auto_Effects(void) {
                 // 周期 1000ms
                 time_in_cycle = (now - state_start_time) % 1000;
 
-                // 亮度范围改为: 15 ~ 150 (差值 135)
+                // 亮度范围改为: 15 ~ 200 (差值 185)
                 if (time_in_cycle < 500) {
                     // 0~500ms: 变暗 (150 -> 15)
-                    pwm_val = 150 - (uint32_t)time_in_cycle * 135 / 500;
+                    pwm_val = 200 - (uint32_t)time_in_cycle * 185 / 500;
                 } else {
                     // 500~1000ms: 变亮 (15 -> 150)
-                    pwm_val = 15 + (uint32_t)(time_in_cycle - 500) * 135 / 500;
+                    pwm_val = 15 + (uint32_t)(time_in_cycle - 500) * 185 / 500;
                 }
 
                 for(i=0; i<LED_COUNT; i++) {
@@ -185,8 +185,8 @@ void main() {
     
     // 1. 硬件配置
     P_SW2 |= 0x80; 
+    LED_PIN = 0; // 确保IO口初始为低
     LED_System_Init();
-    // LED_PIN = 0; // 确保IO口初始为低
     
     // ===============================================
     // 【关键修复 1】：上电强延时 + 强制全黑
