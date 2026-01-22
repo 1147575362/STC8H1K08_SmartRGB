@@ -131,16 +131,16 @@ void Auto_Effects(void) {
 
                 last_update_time = now;
                 
-                // 周期 1000ms
-                time_in_cycle = (now - state_start_time) % 1000;
+                // 周期 2000ms
+                time_in_cycle = (now - state_start_time) % 2000;
 
-                // 亮度范围改为: 15 ~ 200 (差值 185)
-                if (time_in_cycle < 500) {
-                    // 0~500ms: 变暗 (150 -> 15)
-                    pwm_val = 200 - (uint32_t)time_in_cycle * 185 / 500;
+                // 亮度范围改为: 15 ~ 300 (差值 285)
+                if (time_in_cycle < 1000) {
+                    // 0~500ms: 变暗 (300 -> 15)
+                    pwm_val = 300 - (uint32_t)time_in_cycle * 285 / 1000;
                 } else {
-                    // 500~1000ms: 变亮 (15 -> 150)
-                    pwm_val = 15 + (uint32_t)(time_in_cycle - 500) * 185 / 500;
+                    // 500~1000ms: 变亮 (15 -> 300)
+                    pwm_val = 15 + (uint32_t)(time_in_cycle - 1000) * 285 / 1000;
                 }
 
                 for(i=0; i<LED_COUNT; i++) {
